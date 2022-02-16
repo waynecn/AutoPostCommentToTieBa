@@ -1,5 +1,7 @@
 package main
 
+import "time"
+
 var likedTiebaUrl = "https://tieba.baidu.com/mo/q/newmoindex"
 var tbsUrl = "http://tieba.baidu.com/dc/common/tbs"
 var signUrl = "http://c.tieba.baidu.com/c/c/forum/sign"
@@ -18,7 +20,7 @@ var chooseFid string
 var chooseTid int
 var currentTbs string
 var CurrentLine int
-var Sleeped bool
+var SleepTime time.Duration
 
 type TBSResult struct {
 	Tbs     string `json:"tbs"`

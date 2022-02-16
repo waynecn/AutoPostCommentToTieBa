@@ -9,7 +9,7 @@ import (
 var RandomContent []string
 
 func InitRandomContent() {
-	RandomContent = []string{"test"}
+	RandomContent = []string{}
 	f, err := os.OpenFile("tangshi300.txt", os.O_RDONLY, 0666)
 	if err != nil {
 		log.Println("打开文件失败:", err)

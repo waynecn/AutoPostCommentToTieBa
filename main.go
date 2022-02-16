@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -15,9 +16,12 @@ import (
 	"time"
 )
 
+var StartIndex = flag.Int("i", 0, "")
+
 func main() {
+	flag.Parse()
 	log.Println("main")
-	Sleeped = false
+	SleepTime = 30
 	InitRandomContent()
 	ScanTieBa()
 }
@@ -62,7 +66,7 @@ func GetTbs() TBSResult {
 
 func GetAllBars() LIKEDBars {
 	var likeBars LIKEDBars
-	client := &http.Client{Timeout: 5 * time.Second}
+	client := &http.Client{Timeout: 10 * time.Second}
 	req, err := http.NewRequest("GET", likedTiebaUrl, nil)
 	if err != nil {
 		log.Println("创建关注的吧请求错误:", err)
@@ -100,7 +104,7 @@ func GetAllBars() LIKEDBars {
 func ScanTieBa() {
 	GetTbs()
 
-	tieBarIndex := 0
+	tieBarIndex := *StartIndex
 	exitFlag := false
 	for !exitFlag {
 		allBars := GetAllBars()
@@ -118,14 +122,11 @@ func ScanTieBa() {
 		chooseFid = strconv.Itoa(allBars.Data.LikeForum[tieBarIndex].ForumId)
 		tieBarUrl := "https://tieba.baidu.com/f?kw=" + kw
 
-		fmt.Println("进入贴吧:", kw)
+		time.Sleep(SleepTime * time.Second)
+		fmt.Println("进入贴吧:", kw, "  url:", tieBarUrl)
 		ShowTopics(tieBarUrl)
 
 		tieBarIndex++
-		if !Sleeped {
-			time.Sleep(20 * time.Second)
-			Sleeped = true
-		}
 	}
 }
 
@@ -139,6 +140,8 @@ func ShowTopics(strUrl string) {
 	}
 
 	request.Header.Add("Cookie", cookies)
+	request.Header.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.82 Safari/537.36")
+
 	resp, err := client.Do(request)
 	if err != nil {
 		fmt.Println("请求话题列表发生错误:", err)
@@ -192,18 +195,21 @@ func ShowTopics(strUrl string) {
 			endIndex = strings.Index(line, "\"")
 			title := line[:endIndex]
 
+			if strings.Index(title, "公告") != -1 || strings.Index(title, "勿回") != -1 ||
+				strings.Index(title, "禁止") != -1 || strings.Index(title, "吧规") != -1 ||
+				strings.Index(title, "吧务") != -1 || strings.Index(title, "专用") != -1 {
+				continue
+			}
+
 			hrefs = append(hrefs, href)
 			titles = append(titles, title)
 
 			topicUrl := "https://tieba.baidu.com" + href
 			chooseTitle = title
+
+			time.Sleep(SleepTime * time.Second)
 			fmt.Println("自动进入话题链接:", topicUrl, "  话题:", title)
 			GoToTopic(topicUrl)
-
-			if !Sleeped {
-				time.Sleep(20 * time.Second)
-				Sleeped = true
-			}
 		}
 	}
 }
@@ -247,24 +253,19 @@ func GoToTopic(strUrl string) {
 	defer f.Close()
 
 	scanner := bufio.NewScanner(f)
+	floorCount := 0
+	var content string
 	for scanner.Scan() {
 		line := scanner.Text()
-
-		if strings.Count(line, "class=\"p_forbidden_post_content_unfold") <= 1 {
-			//表示只有主楼 可以抢占2楼
-			AutoReplyTopic(strUrl)
-
-			if !Sleeped {
-				time.Sleep(20 * time.Second)
-			}
-			Sleeped = false
-			break
-		}
 
 		//这一行找出楼层内回复
 		index := strings.Index(line, "class=\"p_forbidden_post_content_unfold")
 		if index == -1 {
 			continue
+		}
+		floorCount++
+		if floorCount > 2 {
+			break
 		}
 		index = strings.Index(line, "style=\"display:;\">")
 		if -1 == index {
@@ -290,27 +291,16 @@ func GoToTopic(strUrl string) {
 			continue
 		}
 
-		content := line[index:index2]
+		content = line[index:index2]
+	}
+	if floorCount <= 1 {
 		fmt.Println("话题链接:", strUrl)
 		fmt.Println("话题内容:", content)
-
-		// ReplyTopic(strUrl)
-
-		// breakFlag := false
-		// for true {
-		// 	fmt.Println("是否继续回复?0退出，其他继续")
-		// 	breakStr := ""
-		// 	fmt.Scanln(&breakStr)
-		// 	if "0" == breakStr {
-		// 		breakFlag = true
-		// 		break
-		// 	}
-		// 	break
-		// }
-		// if breakFlag {
-		// 	break
-		// }
+		//表示只有主楼 可以抢占2楼
+		AutoReplyTopic(strUrl)
 	}
+
+	time.Sleep(SleepTime * time.Second)
 }
 
 //回复话题
